@@ -1,0 +1,1014 @@
+local library, notifications, themes = loadstring(game:HttpGet("https://raw.githubusercontent.com/i77lhm/Libraries/refs/heads/main/Obelus/Library.lua"))()
+
+-- Set global library reference for namecall hooks
+getgenv().library = library
+
+-- Override the directory inside the UI library config structure
+library.directory = "Rayhook.cc"
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local virtualInputManager = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
+
+local Camera = workspace.CurrentCamera
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    Camera = workspace.CurrentCamera
+end)
+
+local dim2 = UDim2.new 
+local hex = Color3.fromHex 
+
+-- Hook library:addKeyBind to fix mouse binds (MB1, MB2, etc.) and input checking bugs
+library.addKeyBind = function(self, options)
+    local cfg = {
+        flag = options.flag or "SET ME A FLAG NOWWW!!!!",
+        callback = options.callback or function() end,
+        open = false,
+        binding = nil, 
+        name = options.name or nil, 
+        ignore_key = options.ignore or false, 
+
+        key = options.key or nil, 
+        mode = options.mode or "toggle",
+        active = options.default or false, 
+
+        hold_instances = {},
+    }
+
+    library.flags[cfg.flag] = {} 
+
+    -- Map table for display strings
+    local custom_keys = {
+        [Enum.KeyCode.LeftShift] = "LS",
+        [Enum.KeyCode.RightShift] = "RS",
+        [Enum.KeyCode.LeftControl] = "LC",
+        [Enum.KeyCode.RightControl] = "RC",
+        [Enum.KeyCode.Insert] = "INS",
+        [Enum.KeyCode.Backspace] = "BS",
+        [Enum.KeyCode.Return] = "Ent",
+        [Enum.KeyCode.LeftAlt] = "LA",
+        [Enum.KeyCode.RightAlt] = "RA",
+        [Enum.KeyCode.CapsLock] = "CAPS",
+        [Enum.KeyCode.One] = "1",
+        [Enum.KeyCode.Two] = "2",
+        [Enum.KeyCode.Three] = "3",
+        [Enum.KeyCode.Four] = "4",
+        [Enum.KeyCode.Five] = "5",
+        [Enum.KeyCode.Six] = "6",
+        [Enum.KeyCode.Seven] = "7",
+        [Enum.KeyCode.Eight] = "8",
+        [Enum.KeyCode.Nine] = "9",
+        [Enum.KeyCode.Zero] = "0",
+        [Enum.KeyCode.Minus] = "-",
+        [Enum.KeyCode.Equals] = "=",
+        [Enum.KeyCode.Tilde] = "~",
+        [Enum.KeyCode.LeftBracket] = "[",
+        [Enum.KeyCode.RightBracket] = "]",
+        [Enum.KeyCode.RightParenthesis] = ")",
+        [Enum.KeyCode.LeftParenthesis] = "(",
+        [Enum.KeyCode.Semicolon] = ",",
+        [Enum.KeyCode.Quote] = "'",
+        [Enum.KeyCode.BackSlash] = "\\",
+        [Enum.KeyCode.Comma] = ",",
+        [Enum.KeyCode.Period] = ".",
+        [Enum.KeyCode.Slash] = "/",
+        [Enum.KeyCode.Asterisk] = "*",
+        [Enum.KeyCode.Plus] = "+",
+        [Enum.KeyCode.Backquote] = "`",
+        [Enum.UserInputType.MouseButton1] = "MB1",
+        [Enum.UserInputType.MouseButton2] = "MB2",
+        [Enum.UserInputType.MouseButton3] = "MB3",
+        [Enum.KeyCode.Escape] = "ESC",
+        [Enum.KeyCode.Space] = "SPC",
+    }
+
+    -- Instances
+    local outline = library:create("TextButton", {
+        Parent = self.right_components,
+        Name = "",
+        Text = "", 
+        AutoButtonColor = false, 
+        BorderColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 1,
+        SelectionOrder = -1,
+        Size = UDim2.new(0, 0, 0, 9),
+        BorderSizePixel = 0,
+        AutomaticSize = Enum.AutomaticSize.X,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    })
+    
+    local text_label = library:create("TextLabel", {
+        Parent = outline,
+        Name = "",
+        FontFace = library.font,
+        TextColor3 = Color3.fromRGB(180, 180, 180),
+        BorderColor3 = Color3.fromRGB(0, 0, 0),
+        Text = "[ ... ]",
+        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.new(0, 0, 0, -1),
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        BorderSizePixel = 0,
+        AutomaticSize = Enum.AutomaticSize.X,
+        TextSize = 12,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    })
+
+    function cfg.set_mode(mode) 
+        cfg.mode = mode 
+
+        if mode == "always" then
+            cfg.set(true)
+        elseif mode == "hold" then
+            cfg.set(false)
+        end
+
+        library.flags[cfg.flag]["mode"] = mode
+    end 
+
+    function cfg.set(input)
+        if type(input) == "boolean" then 
+            local __cached = input 
+
+            if cfg.mode == "always" then 
+                __cached = true 
+            end 
+
+            cfg.active = __cached 
+            cfg.callback(__cached)
+        elseif tostring(input):find("Enum") then 
+            input = input.Name == "Escape" and "..." or input
+            cfg.key = input or "..."    
+            cfg.callback(cfg.active or false)
+        elseif table.find({"toggle", "hold", "always"}, input) then 
+            cfg.set_mode(input)
+
+            if input == "always" then 
+                cfg.active = true 
+            end 
+
+            cfg.callback(cfg.active or false)
+        elseif type(input) == "table" then 
+            input.key = type(input.key) == "string" and input.key ~= "..." and library:convertEnum(input.key) or input.key
+            input.key = input.key == Enum.KeyCode.Escape and "..." or input.key
+            cfg.key = input.key or "..."
+            cfg.mode = input.mode or "toggle"
+
+            if input.active then
+                cfg.active = input.active
+            end
+        end 
+
+        library.flags[cfg.flag] = {
+            mode = cfg.mode,
+            key = cfg.key, 
+            active = cfg.active
+        }
+
+        local text = tostring(cfg.key) ~= "Enums" and (custom_keys[cfg.key] or tostring(cfg.key):gsub("Enum.", "")) or nil
+        local __text = text and (tostring(text):gsub("KeyCode.", ""):gsub("UserInputType.", ""))
+        
+        text_label.Text = "[" .. string.lower(__text or "...") .. "]"
+    end
+
+    outline.MouseButton1Down:Connect(function()
+        task.wait()
+        text_label.Text = "[ ... ]" 
+
+        cfg.binding = library:connection(UIS.InputBegan, function(keycode, game_event)  
+            local bound_key = keycode.UserInputType == Enum.UserInputType.Keyboard and keycode.KeyCode or keycode.UserInputType
+            if bound_key == Enum.UserInputType.MouseButton1 then
+                -- Ignore left click so they don't bind to it while clicking
+                return
+            end
+            cfg.set(bound_key)
+
+            cfg.binding:Disconnect() 
+            cfg.binding = nil
+        end)
+    end)
+
+    library:connection(UIS.InputBegan, function(input, game_event) 
+        if not game_event then 
+            local pressed_key = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType
+            if pressed_key == cfg.key then 
+                if cfg.mode == "toggle" then 
+                    cfg.active = not cfg.active
+                    cfg.set(cfg.active)
+                elseif cfg.mode == "hold" then 
+                    cfg.set(true)
+                end
+            end
+        end
+    end)
+
+    library:connection(UIS.InputEnded, function(input, game_event) 
+        if not game_event then 
+            local selected_key = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType
+            if selected_key == cfg.key then
+                if cfg.mode == "hold" then 
+                    cfg.set(false)
+                end
+            end
+        end
+    end)
+
+    cfg.set({mode = cfg.mode, active = cfg.active, key = cfg.key})
+    
+    library.config_flags[cfg.flag] = cfg.set
+
+    return setmetatable(cfg, library)
+end 
+
+-- Window Initialization
+local window = library:window({
+    name = os.date('<font color="rgb(170,85,235)">Rayhook.cc</font> | %b %d %Y'),
+    size = dim2(0, 516, 0, 563)
+})  
+
+-- ScreenGui is instantiated inside library:window, set ResetOnSpawn to false now
+local fov_screen = Instance.new("ScreenGui")
+fov_screen.Name = "RayhookFOVScreen"
+fov_screen.ResetOnSpawn = false
+fov_screen.IgnoreGuiInset = true
+
+local success_parent, target_parent = pcall(function()
+    return game:GetService("CoreGui")
+end)
+if success_parent and target_parent then
+    fov_screen.Parent = target_parent
+else
+    fov_screen.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local fov_circle_gui = Instance.new("Frame")
+fov_circle_gui.Name = "FOVCircle"
+fov_circle_gui.AnchorPoint = Vector2.new(0.5, 0.5)
+fov_circle_gui.BackgroundTransparency = 1
+fov_circle_gui.BorderSizePixel = 0
+fov_circle_gui.Size = UDim2.new(0, 200, 0, 200)
+fov_circle_gui.Position = UDim2.new(0.5, 0, 0.5, 0)
+fov_circle_gui.Active = false
+fov_circle_gui.Visible = false
+fov_circle_gui.Parent = fov_screen
+
+local fov_stroke = Instance.new("UIStroke")
+fov_stroke.Thickness = 1
+fov_stroke.Color = Color3.fromRGB(255, 255, 255)
+fov_stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+fov_stroke.Parent = fov_circle_gui
+
+local fov_corner = Instance.new("UICorner")
+fov_corner.CornerRadius = UDim.new(1, 0)
+fov_corner.Parent = fov_circle_gui
+
+-- Input passthrough override: temporarily hide FOV circle on click/drag start so Roblox does not intercept input
+library:connection(UIS.InputBegan, function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+        if fov_circle_gui and fov_circle_gui.Visible then
+            fov_circle_gui.Visible = false
+            task.wait()
+            local enabled = false
+            pcall(function()
+                if library.flags and library.flags["fov_circle_enabled"] and library.flags["aimbot_enabled"] then
+                    enabled = true
+                end
+            end)
+            if enabled then
+                fov_circle_gui.Visible = true
+            end
+        end
+    end
+end)
+getgenv().aimbot_active = false
+getgenv().target_part = nil
+getgenv().triggerbot_active = false
+
+-------------------------------------------------
+-- FOLDER INITIALIZATION
+-------------------------------------------------
+pcall(function()
+    if makefolder then
+        makefolder("Rayhook.cc")
+        makefolder("Rayhook.cc/configs")
+    end
+end)
+
+-------------------------------------------------
+-- ESP DRAWING HELPERS
+-------------------------------------------------
+local function NewQuad(thickness, color)
+    local q = Drawing.new("Quad")
+    q.Visible = false
+    q.PointA = Vector2.new(0, 0)
+    q.PointB = Vector2.new(0, 0)
+    q.PointC = Vector2.new(0, 0)
+    q.PointD = Vector2.new(0, 0)
+    q.Color = color
+    q.Filled = false
+    q.Thickness = thickness
+    q.Transparency = 1
+    return q
+end
+
+local function NewLine(thickness, color)
+    local l = Drawing.new("Line")
+    l.Visible = false
+    l.From = Vector2.new(0, 0)
+    l.To = Vector2.new(0, 0)
+    l.Color = color
+    l.Thickness = thickness
+    l.Transparency = 1
+    return l
+end
+
+local function NewText(size, color)
+    local t = Drawing.new("Text")
+    t.Visible = false
+    t.Text = ""
+    t.Size = size
+    t.Color = color
+    t.Center = true
+    t.Outline = true
+    t.OutlineColor = Color3.fromRGB(0, 0, 0)
+    t.Transparency = 1
+    return t
+end
+
+local function setQuadSize(quad, cx, cy, dy)
+    quad.PointA = Vector2.new(cx + dy, cy - dy * 2)
+    quad.PointB = Vector2.new(cx - dy, cy - dy * 2)
+    quad.PointC = Vector2.new(cx - dy, cy + dy * 2)
+    quad.PointD = Vector2.new(cx + dy, cy + dy * 2)
+end
+
+-------------------------------------------------
+-- AIMBOT LOGIC
+-------------------------------------------------
+local function get_closest_player()
+    local closest_part = nil
+    local shortest_distance = math.huge
+    
+    local spawned = workspace:FindFirstChild("Spawned")
+    if not spawned then return nil end
+    local player_chars = spawned:FindFirstChild("PlayerCharacters")
+    if not player_chars then return nil end
+    
+    local screen_center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    local selected_parts = library.flags["hit_parts_selected"] or {"Head"}
+    if type(selected_parts) ~= "table" then
+        selected_parts = {selected_parts}
+    end
+    
+    for _, char in ipairs(player_chars:GetChildren()) do
+        if char:IsA("Model") and char.Name ~= Players.LocalPlayer.Name then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                for _, part_name in ipairs(selected_parts) do
+                    local part = char:FindFirstChild(part_name)
+                    if part and part:IsA("BasePart") then
+                        local screen_pos, on_screen = Camera:WorldToViewportPoint(part.Position)
+                        if on_screen then
+                            local distance = (Vector2.new(screen_pos.X, screen_pos.Y) - screen_center).Magnitude
+                            
+                            local fov_max = library.flags["fov_size_value"] or 100
+                            if not library.flags["fov_circle_enabled"] or distance <= fov_max then
+                                if distance < shortest_distance then
+                                    shortest_distance = distance
+                                    closest_part = part
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return closest_part
+end
+
+-------------------------------------------------
+-- TRIGGERBOT LOGIC
+-------------------------------------------------
+local function isMouseOverEnemy()
+    local mousePos = UIS:GetMouseLocation()
+    local ray = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {Players.LocalPlayer.Character}
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+
+    local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, params)
+    
+    if not result then
+        return false
+    end
+
+    local character = result.Instance:FindFirstAncestorOfClass("Model")
+    if not character then
+        return false
+    end
+
+    local spawned = workspace:FindFirstChild("Spawned")
+    local playerCharacters = spawned and spawned:FindFirstChild("PlayerCharacters")
+
+    if playerCharacters and character:IsDescendantOf(playerCharacters) then
+        if character ~= Players.LocalPlayer.Character then
+            if library.flags["trigger_team_check"] then
+                local player = Players:GetPlayerFromCharacter(character)
+                if player and player.Team == Players.LocalPlayer.Team then
+                    return false
+                end
+            end
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function fireClick()
+    local mousePos = UIS:GetMouseLocation()
+    virtualInputManager:SendMouseButtonEvent(mousePos.X, mousePos.Y, 0, true, game, 0)
+    virtualInputManager:SendMouseButtonEvent(mousePos.X, mousePos.Y, 0, false, game, 0)
+end
+
+-- Main RenderStepped & Heartbeat Loops
+local last_shot = 0
+RunService.RenderStepped:Connect(function()
+    -- Render & Position FOV Circle in the middle of the screen
+    if fov_circle_gui then
+        if library.flags["fov_circle_enabled"] and library.flags["aimbot_enabled"] then
+            fov_circle_gui.Visible = true
+            local radius = library.flags["fov_size_value"] or 100
+            fov_circle_gui.Size = UDim2.new(0, radius * 2, 0, radius * 2)
+            fov_circle_gui.Position = UDim2.new(0.5, 0, 0.5, 0)
+            
+            local custom_color = library.flags["fov_color"]
+            if custom_color then
+                if type(custom_color) == "table" and custom_color.Color then
+                    fov_stroke.Color = custom_color.Color
+                elseif typeof(custom_color) == "Color3" then
+                    fov_stroke.Color = custom_color
+                end
+            else
+                fov_stroke.Color = Color3.fromRGB(255, 255, 255)
+            end
+        else
+            fov_circle_gui.Visible = false
+        end
+    end
+
+    -- Target tracking and Camera lock execution
+    if library.flags["aimbot_enabled"] and getgenv().aimbot_active then
+        getgenv().target_part = get_closest_player()
+        local target = getgenv().target_part
+        if target and library.flags["aimbot_type"] == "Camera" then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+        end
+    else
+        getgenv().target_part = nil
+    end
+
+    -- Triggerbot execution loop
+    if library.flags["triggerbot_enabled"] and getgenv().triggerbot_active then
+        local now = os.clock()
+        local delay_val = library.flags["trigger_delay_value"] or 0.1
+        if now - last_shot >= delay_val then
+            if isMouseOverEnemy() then
+                fireClick()
+                last_shot = now
+            end
+        end
+    end
+end)
+
+-- RayMouse Silent Aim Hook Setup
+task.spawn(function()
+    local RayMouse = nil
+    pcall(function()
+        RayMouse = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Shared"):WaitForChild("RayUtils"):WaitForChild("RayMouse"))
+    end)
+
+    if RayMouse and hookfunction then
+        if not _G.OriginalGetMousePosition then
+            _G.OriginalGetMousePosition = hookfunction(RayMouse.GetMousePosition, function(...)
+                local target = getgenv().target_part
+                if not target and library.flags and library.flags["aimbot_enabled"] and library.flags["aimbot_type"] == "Silent Aim" and getgenv().aimbot_active then
+                    target = get_closest_player()
+                end
+                if library.flags and library.flags["aimbot_enabled"] and library.flags["aimbot_type"] == "Silent Aim" and getgenv().aimbot_active and target and target.Parent then
+                    return target.Position
+                end
+                return _G.OriginalGetMousePosition(...)
+            end)
+        end
+        
+        if not _G.OriginalGetTarget then
+            _G.OriginalGetTarget = hookfunction(RayMouse.GetTarget, function(...)
+                local target = getgenv().target_part
+                if not target and library.flags and library.flags["aimbot_enabled"] and library.flags["aimbot_type"] == "Silent Aim" and getgenv().aimbot_active then
+                    target = get_closest_player()
+                end
+                if library.flags and library.flags["aimbot_enabled"] and library.flags["aimbot_type"] == "Silent Aim" and getgenv().aimbot_active and target and target.Parent then
+                    return target
+                end
+                return _G.OriginalGetTarget(...)
+            end)
+        end
+        
+        if not _G.OriginalGetMouseCFrame then
+            _G.OriginalGetMouseCFrame = hookfunction(RayMouse.GetMouseCFrame, function(...)
+                local target = getgenv().target_part
+                if not target and library.flags and library.flags["aimbot_enabled"] and library.flags["aimbot_type"] == "Silent Aim" and getgenv().aimbot_active then
+                    target = get_closest_player()
+                end
+                if library.flags and library.flags["aimbot_enabled"] and library.flags["aimbot_type"] == "Silent Aim" and getgenv().aimbot_active and target and target.Parent then
+                    return CFrame.new(target.Position)
+                end
+                return _G.OriginalGetMouseCFrame(...)
+            end)
+        end
+    end
+end)
+
+-------------------------------------------------
+-- PLAYER ESP DRAWING WORKER
+-------------------------------------------------
+local espData = {}
+
+local function ESP(plr)
+    if espData[plr] then
+        if espData[plr].connection then espData[plr].connection:Disconnect() end
+        for _, obj in pairs(espData[plr].drawings) do
+            pcall(function() obj:Remove() end)
+        end
+    end
+
+    local drawings = {
+        blackBox    = NewQuad(2, Color3.new(0, 0, 0)),
+        box         = NewQuad(1, Color3.new(1, 1, 1)),
+        healthbar   = NewLine(3, Color3.new(0, 0, 0)),
+        greenhealth = NewLine(1.5, Color3.new(0, 1, 0)),
+        name        = NewText(13, Color3.new(1, 1, 1)),
+        distance    = NewText(13, Color3.new(1, 1, 1)),
+        tracer      = NewLine(1, Color3.new(1, 1, 1)),
+    }
+
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        local spawned = workspace:FindFirstChild("Spawned")
+        local player_chars = spawned and spawned:FindFirstChild("PlayerCharacters")
+        local char = player_chars and player_chars:FindFirstChild(plr.Name) or plr.Character
+
+        if not char then
+            for _, obj in pairs(drawings) do obj.Visible = false end
+            if not Players:FindFirstChild(plr.Name) then
+                conn:Disconnect()
+            end
+            return
+        end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local head = char:FindFirstChild("Head")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+
+        if not (hrp and head and hum and hum.Health > 0) then
+            for _, obj in pairs(drawings) do obj.Visible = false end
+            return
+        end
+
+        local humPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+        if not onScreen then
+            for _, obj in pairs(drawings) do obj.Visible = false end
+            return
+        end
+
+        local headScreen = Camera:WorldToViewportPoint(head.Position)
+        local distY = math.clamp(
+            (Vector2.new(headScreen.X, headScreen.Y) - Vector2.new(humPos.X, humPos.Y)).Magnitude,
+            2, math.huge
+        )
+
+        -- Box ESP
+        if library.flags["esp_boxes_enabled"] then
+            local boxColor = library.flags["esp_boxes_color"]
+            local color = Color3.fromRGB(255, 255, 255)
+            if boxColor then
+                if type(boxColor) == "table" and boxColor.Color then
+                    color = boxColor.Color
+                elseif typeof(boxColor) == "Color3" then
+                    color = boxColor
+                end
+            end
+            drawings.box.Color = color
+            setQuadSize(drawings.box, humPos.X, humPos.Y, distY)
+            setQuadSize(drawings.blackBox, humPos.X, humPos.Y, distY)
+            drawings.box.Visible = true
+            drawings.blackBox.Visible = true
+        else
+            drawings.box.Visible = false
+            drawings.blackBox.Visible = false
+        end
+
+        -- Health ESP
+        if library.flags["esp_health_enabled"] then
+            local barHeight = distY * 4
+            local healthFrac = hum.Health / hum.MaxHealth
+            local healthOffset = healthFrac * barHeight
+
+            drawings.healthbar.From = Vector2.new(humPos.X - distY - 5, humPos.Y + distY * 2)
+            drawings.healthbar.To   = Vector2.new(humPos.X - distY - 5, humPos.Y - distY * 2)
+
+            drawings.greenhealth.From = Vector2.new(humPos.X - distY - 5, humPos.Y + distY * 2)
+            drawings.greenhealth.To   = Vector2.new(humPos.X - distY - 5, humPos.Y + distY * 2 - healthOffset)
+
+            local healthColor = library.flags["esp_health_color"]
+            if healthColor then
+                local customCol = Color3.fromRGB(0, 255, 0)
+                if type(healthColor) == "table" and healthColor.Color then
+                    customCol = healthColor.Color
+                elseif typeof(healthColor) == "Color3" then
+                    customCol = healthColor
+                end
+                drawings.greenhealth.Color = customCol
+            else
+                local red = Color3.fromRGB(255, 0, 0)
+                local green = Color3.fromRGB(0, 255, 0)
+                drawings.greenhealth.Color = red:Lerp(green, healthFrac)
+            end
+
+            drawings.healthbar.Visible = true
+            drawings.greenhealth.Visible = true
+        else
+            drawings.healthbar.Visible = false
+            drawings.greenhealth.Visible = false
+        end
+
+        -- Name ESP
+        if library.flags["esp_name_enabled"] then
+            local nameColor = library.flags["esp_name_color"]
+            local color = Color3.fromRGB(255, 255, 255)
+            if nameColor then
+                if type(nameColor) == "table" and nameColor.Color then
+                    color = nameColor.Color
+                elseif typeof(nameColor) == "Color3" then
+                    color = nameColor
+                end
+            end
+            drawings.name.Color = color
+            drawings.name.Text = plr.Name
+            drawings.name.Position = Vector2.new(humPos.X, humPos.Y - distY * 2 - 16)
+            drawings.name.Visible = true
+        else
+            drawings.name.Visible = false
+        end
+
+        -- Distance ESP
+        if library.flags["esp_distance_enabled"] then
+            local distColor = library.flags["esp_distance_color"]
+            local color = Color3.fromRGB(255, 255, 255)
+            if distColor then
+                if type(distColor) == "table" and distColor.Color then
+                    color = distColor.Color
+                elseif typeof(distColor) == "Color3" then
+                    color = distColor
+                end
+            end
+
+            local localChar = Players.LocalPlayer.Character
+            local localHrp = localChar and localChar:FindFirstChild("HumanoidRootPart")
+            local distanceVal = 0
+            if localHrp and hrp then
+                distanceVal = math.round((localHrp.Position - hrp.Position).Magnitude)
+            end
+
+            drawings.distance.Color = color
+            drawings.distance.Text = tostring(distanceVal) .. "m"
+            drawings.distance.Position = Vector2.new(humPos.X, humPos.Y + distY * 2 + 4)
+            drawings.distance.Visible = true
+        else
+            drawings.distance.Visible = false
+        end
+
+        -- Tracer ESP
+        if library.flags["esp_tracers_enabled"] then
+            local tracerColor = library.flags["esp_tracers_color"]
+            local color = Color3.fromRGB(255, 255, 255)
+            if tracerColor then
+                if type(tracerColor) == "table" and tracerColor.Color then
+                    color = tracerColor.Color
+                elseif typeof(tracerColor) == "Color3" then
+                    color = tracerColor
+                end
+            end
+
+            local placement = library.flags["esp_tracer_placement"] or "Bottom"
+            local screenWidth = Camera.ViewportSize.X
+            local screenHeight = Camera.ViewportSize.Y
+            local origin = Vector2.new(screenWidth / 2, screenHeight)
+
+            if placement == "Top" then
+                origin = Vector2.new(screenWidth / 2, 0)
+            elseif placement == "Middle" then
+                origin = Vector2.new(screenWidth / 2, screenHeight / 2)
+            end
+
+            drawings.tracer.Color = color
+            drawings.tracer.From = origin
+            drawings.tracer.To = Vector2.new(headScreen.X, headScreen.Y)
+            drawings.tracer.Visible = true
+        else
+            drawings.tracer.Visible = false
+        end
+    end)
+
+    espData[plr] = { connection = conn, drawings = drawings }
+end
+
+-- Hook up Player ESP logic
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr ~= Players.LocalPlayer then
+        coroutine.wrap(ESP)(plr)
+    end
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= Players.LocalPlayer then
+        coroutine.wrap(ESP)(plr)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    local data = espData[plr]
+    if data then
+        if data.connection then data.connection:Disconnect() end
+        for _, obj in pairs(data.drawings) do
+            pcall(function() obj:Remove() end)
+        end
+        espData[plr] = nil
+    end
+end)
+
+-------------------------------------------------
+-- COMBAT TAB
+-------------------------------------------------
+local Combat = window:tab({name = "Combat"})
+
+local combat_col1 = Combat:column({fill = true}) 
+local combat_col2 = Combat:column({fill = true})
+
+-- Aimbot Section (Column 1)
+local aimbot_sec = combat_col1:section({name = "Aimbot"})
+aimbot_sec:addToggle({name = "Aimbot", flag = "aimbot_enabled", default = false})
+    :addKeyBind({name = "Aimbot Bind", flag = "aimbot_bind", callback = function(bool) 
+        getgenv().aimbot_active = bool
+    end})
+aimbot_sec:addDropdown({name = "Aimbot type", flag = "aimbot_type", items = {"Camera", "Silent Aim"}, default = "Camera"})
+aimbot_sec:addToggle({name = "Fov circle", flag = "fov_circle_enabled", default = false})
+aimbot_sec:addSlider({name = "Fov size", min = 1, max = 500, default = 100, interval = 1, flag = "fov_size_value"})
+aimbot_sec:addDropdown({name = "Hit Parts", flag = "hit_parts_selected", items = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}, default = {"Head"}, multi = true})
+
+-- Triggerbot Section (Column 2)
+local trigger_sec = combat_col2:section({name = "Triggerbot"})
+trigger_sec:addToggle({name = "Triggerbot", flag = "triggerbot_enabled", default = false})
+    :addKeyBind({name = "Triggerbot Bind", flag = "triggerbot_bind", callback = function(bool) 
+        getgenv().triggerbot_active = bool
+    end})
+trigger_sec:addSlider({name = "Trigger Delay", min = 0, max = 1, default = 0.1, interval = 0.01, flag = "trigger_delay_value"})
+trigger_sec:addToggle({name = "Team check", flag = "trigger_team_check", default = false})
+
+-------------------------------------------------
+-- VISUALS TAB
+-------------------------------------------------
+local Visuals = window:tab({name = "Visuals"})
+
+local visuals_col1 = Visuals:column({fill = true})
+local visuals_col2 = Visuals:column({fill = true})
+
+-- Player ESP Section (Column 1)
+local player_esp_sec = visuals_col1:section({name = "Player ESP"})
+
+local name_tog = player_esp_sec:addToggle({name = "Name", flag = "esp_name_enabled", default = false})
+name_tog:addColorPicker({name = "Name Color", flag = "esp_name_color", color = hex("#FFFFFF")})
+
+local health_tog = player_esp_sec:addToggle({name = "Health", flag = "esp_health_enabled", default = false})
+health_tog:addColorPicker({name = "Health Color", flag = "esp_health_color", color = hex("#00FF00")})
+
+local distance_tog = player_esp_sec:addToggle({name = "Distance", flag = "esp_distance_enabled", default = false})
+distance_tog:addColorPicker({name = "Distance Color", flag = "esp_distance_color", color = hex("#FFFFFF")})
+
+local boxes_tog = player_esp_sec:addToggle({name = "Boxes", flag = "esp_boxes_enabled", default = false})
+boxes_tog:addColorPicker({name = "Boxes Color", flag = "esp_boxes_color", color = hex("#FFFFFF")})
+
+local tracers_tog = player_esp_sec:addToggle({name = "Tracers", flag = "esp_tracers_enabled", default = false})
+tracers_tog:addColorPicker({name = "Tracers Color", flag = "esp_tracers_color", color = hex("#FFFFFF")})
+
+player_esp_sec:addDropdown({name = "Tracer Placement", flag = "esp_tracer_placement", items = {"Top", "Middle", "Bottom"}, default = "Bottom"})
+
+-- NPC ESP Section (Column 1)
+local npc_esp_sec = visuals_col1:section({name = "NPC ESP"})
+
+local npc_name_tog = npc_esp_sec:addToggle({name = "Name", flag = "npc_name_enabled", default = false})
+npc_name_tog:addColorPicker({name = "Name Color", flag = "npc_name_color", color = hex("#FFFFFF")})
+
+local npc_health_tog = npc_esp_sec:addToggle({name = "Health", flag = "npc_health_enabled", default = false})
+npc_health_tog:addColorPicker({name = "Health Color", flag = "npc_health_color", color = hex("#00FF00")})
+
+local npc_distance_tog = npc_esp_sec:addToggle({name = "Distance", flag = "npc_distance_enabled", default = false})
+npc_distance_tog:addColorPicker({name = "Distance Color", flag = "npc_distance_color", color = hex("#FFFFFF")})
+
+local npc_weapons_tog = npc_esp_sec:addToggle({name = "Weapons", flag = "npc_weapons_enabled", default = false})
+npc_weapons_tog:addColorPicker({name = "Weapons Color", flag = "npc_weapons_color", color = hex("#FFFFFF")})
+
+local npc_boxes_tog = npc_esp_sec:addToggle({name = "Boxes", flag = "npc_boxes_enabled", default = false})
+npc_boxes_tog:addColorPicker({name = "Boxes Color", flag = "npc_boxes_color", color = hex("#FFFFFF")})
+
+local npc_tracers_tog = npc_esp_sec:addToggle({name = "Tracers", flag = "npc_tracers_enabled", default = false})
+npc_tracers_tog:addColorPicker({name = "Tracers Color", flag = "npc_tracers_color", color = hex("#FFFFFF")})
+
+npc_esp_sec:addDropdown({name = "Tracer Placement", flag = "npc_tracer_placement", items = {"Top", "Middle", "Bottom"}, default = "Bottom"})
+
+-- FOV Customization Section (Column 2)
+local fov_cust_sec = visuals_col2:section({name = "FOV Customization"})
+
+fov_cust_sec:addLabel({name = "FOV Color"}):addColorPicker({color = hex("#7D0DC3"), flag = "fov_color"})
+
+-------------------------------------------------
+-- SETTINGS TAB
+-------------------------------------------------
+local Settings = window:tab({name = "Settings"})
+
+local settings_col1 = Settings:column({fill = true})
+local settings_col2 = Settings:column({fill = true})
+
+-- Config Section
+local general = settings_col1:section({name = "Configs"})
+config_holder = general:addList({name = "Configs", flag = "config_name_list", scale = 100})
+general:addTextBox({name = "Config Name", default = "", flag = "config_name_text_box"})
+
+-- Custom JSON Serialization for complex configuration values
+function library:getConfig()
+    local serialized = {}
+    for key, val in pairs(library.flags) do
+        -- Skip configuration inputs themselves
+        if key ~= "config_name_text_box" and key ~= "config_name_list" then
+            if type(val) == "table" then
+                if val.Color and typeof(val.Color) == "Color3" then
+                    -- Color Picker structures
+                    serialized[key] = {
+                        __type = "ColorPicker",
+                        color = val.Color:ToHex(),
+                        transparency = val.Transparency or 0
+                    }
+                elseif val.key then
+                    -- Keybind structures
+                    serialized[key] = {
+                        __type = "Keybind",
+                        key = tostring(val.key),
+                        active = val.active,
+                        mode = val.mode
+                    }
+                else
+                    serialized[key] = val
+                end
+            else
+                serialized[key] = val
+            end
+        end
+    end
+    return HttpService:JSONEncode(serialized)
+end
+
+function library:loadConfig(jsonStr)
+    local success, data = pcall(function() return HttpService:JSONDecode(jsonStr) end)
+    if not success or type(data) ~= "table" then return end
+    
+    for key, val in pairs(data) do
+        local setter = library.config_flags[key]
+        if setter then
+            pcall(function()
+                if type(val) == "table" and val.__type == "ColorPicker" then
+                    setter(Color3.fromHex(val.color), val.transparency)
+                elseif type(val) == "table" and val.__type == "Keybind" then
+                    setter(val)
+                else
+                    setter(val)
+                end
+            end)
+        end
+    end
+end
+
+-- Custom cross-executor config scanning helper
+function library:configListUpdate() 
+    if not config_holder then return end 
+    local list = {}
+    pcall(function()
+        for _, file in ipairs(listfiles("Rayhook.cc/configs")) do
+            -- Extract file name without path and extension
+            local name = file:match("([^/\\]+)%.cfg$")
+            if name then
+                table.insert(list, name)
+            end
+        end
+    end)
+    config_holder.refresh_options(list)
+end 
+
+general:addButton({name = "Create", callback = function()
+    -- Force active textboxes to release focus to save updates to library.flags first
+    UIS:ReleaseFocus()
+    task.wait()
+    
+    local name = library.flags["config_name_text_box"]
+    if not name or name == "" then return end
+    
+    writefile("Rayhook.cc/configs/" .. name .. ".cfg", library:getConfig())
+    library:configListUpdate()
+end})
+
+general:addButton({name = "Delete", callback = function()
+    local name = library.flags["config_name_list"]
+    if not name or name == "" then return end
+    
+    pcall(function()
+        delfile("Rayhook.cc/configs/" .. name .. ".cfg")
+    end)
+    library:configListUpdate()
+end})
+
+general:addButton({name = "Load", callback = function()
+    local name = library.flags["config_name_list"]
+    if not name or name == "" then return end
+    
+    pcall(function()
+        local data = readfile("Rayhook.cc/configs/" .. name .. ".cfg")
+        library:loadConfig(data)
+    end)
+end})
+
+general:addButton({name = "Save", callback = function()
+    local name = library.flags["config_name_list"]
+    if not name or name == "" then return end
+    
+    writefile("Rayhook.cc/configs/" .. name .. ".cfg", library:getConfig())
+    library:configListUpdate()
+end})
+
+general:addButton({name = "Refresh configs", callback = function()
+    library:configListUpdate()
+end})
+
+library:configListUpdate()
+
+-- Other Settings Section
+local other = settings_col2:section({name = "Other"})
+
+local enabled = true
+general:addLabel({name = "Menu Bind"}):addKeyBind({callback = function(booll) 
+    if window.is_closing_menu == false then 
+        enabled = not enabled
+    end
+    if enabled then
+        if library.gui then
+            library.gui.Enabled = true
+        end
+        window.toggle_menu(enabled)
+    else
+        window.toggle_menu(enabled)
+        task.delay(0.5, function()
+            if not enabled and library.gui then
+                library.gui.Enabled = false
+            end
+        end)
+    end
+end})
+
+general:addLabel({name = "Accent"}):addColorPicker({color = themes.preset.accent, callback = function(color) 
+    library:updateTheme("accent", color)
+end})
+
+local old_config = library:getConfig()
+
+other:addButton({name = "Unload Config", callback = function()
+    library:loadConfig(old_config)
+end})
+
+other:addButton({name = "Unload Menu", callback = function()
+    if fov_screen then
+        fov_screen:Destroy()
+    end
+    for plr, data in pairs(espData) do
+        if data.connection then data.connection:Disconnect() end
+        for _, obj in pairs(data.drawings) do
+            pcall(function() obj:Remove() end)
+        end
+    end
+    library:unloadMenu()
+end})
