@@ -200,6 +200,14 @@ local window = library:window({
 })  
 if library.gui then
     library.gui.ResetOnSpawn = false
+    task.spawn(function()
+        task.wait(0.1)
+        for _, child in ipairs(library.gui:GetChildren()) do
+            if child:IsA("GuiObject") then
+                child.Position = UDim2.new(0.5, -258, 0.5, -120) -- Spawns lower down on the screen
+            end
+        end
+    end)
 end
 -- ScreenGui is instantiated inside library:window, set ResetOnSpawn to false now
 local fov_screen = Instance.new("ScreenGui")
