@@ -205,6 +205,57 @@ if library.gui then
         for _, child in ipairs(library.gui:GetChildren()) do
             if child:IsA("GuiObject") then
                 child.Position = UDim2.new(0.5, -258, 0.5, -120) -- Spawns lower down on the screen
+                
+                -- Dragging from all edges
+                local dragging, dragInput, dragStart, startPos
+                local function update(input)
+                    local delta = input.Position - dragStart
+                    child.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                end
+                
+                child.InputBegan:Connect(function(input)
+                    local targetType = input.UserInputType
+                    if targetType == Enum.UserInputType.MouseButton1 or targetType == Enum.UserInputType.Touch then
+                        if not UIS:GetFocusedTextBox() then
+                            local mousePos = input.Position
+                            local absPos = child.AbsolutePosition
+                            local absSize = child.AbsoluteSize
+                            
+                            local relativeX = mousePos.X - absPos.X
+                            local relativeY = mousePos.Y - absPos.Y
+                            
+                            local edgeThreshold = 20
+                            local nearLeft = (relativeX <= edgeThreshold)
+                            local nearRight = (relativeX >= absSize.X - edgeThreshold)
+                            local nearTop = (relativeY <= edgeThreshold)
+                            local nearBottom = (relativeY >= absSize.Y - edgeThreshold)
+                            
+                            if nearLeft or nearRight or nearTop or nearBottom then
+                                dragging = true
+                                dragStart = mousePos
+                                startPos = child.Position
+                                
+                                input.Changed:Connect(function()
+                                    if input.UserInputState == Enum.UserInputState.End then
+                                        dragging = false
+                                    end
+                                end)
+                            end
+                        end
+                    end
+                end)
+                
+                child.InputChanged:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                        dragInput = input
+                    end
+                end)
+                
+                UIS.InputChanged:Connect(function(input)
+                    if input == dragInput and dragging then
+                        update(input)
+                    end
+                end)
             end
         end
     end)
