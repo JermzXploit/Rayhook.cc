@@ -1111,12 +1111,9 @@ UIS.InputChanged:Connect(function(input)
     end
 end)
 MobileAimbotButton.MouseButton1Click:Connect(function()
-    local setter = library.config_flags["aimbot_enabled"]
-    if setter then
-        setter(not library.flags["aimbot_enabled"])
-    else
-        getgenv().aimbot_active = not getgenv().aimbot_active
-    end
+    virtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    task.wait()
+    virtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end)
 local enabled = true
 local function toggleMenuState()
@@ -1137,7 +1134,11 @@ local function toggleMenuState()
         end)
     end
 end
-MobileButton.MouseButton1Click:Connect(toggleMenuState)
+MobileButton.MouseButton1Click:Connect(function()
+    virtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightControl, false, game)
+    task.wait()
+    virtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightControl, false, game)
+end)
 general:addLabel({name = "Menu Bind"}):addKeyBind({
     key = Enum.KeyCode.RightControl,
     callback = function() 
