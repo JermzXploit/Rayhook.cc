@@ -204,7 +204,7 @@ if library.gui then
         task.wait(0.1)
         for _, child in ipairs(library.gui:GetChildren()) do
             if child:IsA("GuiObject") then
-                child.Position = UDim2.new(0.5, -258, 0.5, -120) -- Spawns lower down on the screen
+                child.Position = UDim2.new(0.5, -258, 0.5, -281.5) -- Spawns in the exact middle of the screen
                 
                 -- Dragging from all edges
                 local dragging, dragInput, dragStart, startPos
@@ -1066,6 +1066,58 @@ end)
 UIS.InputChanged:Connect(function(input)
     if input == dragInput and dragging then
         update(input)
+    end
+end)
+-- Mobile Aimbot Key 'E' Toggle Button
+local MobileAimbotButton = Instance.new("TextButton")
+MobileAimbotButton.Name = "AimbotToggleButton"
+MobileAimbotButton.Size = UDim2.new(0, 35, 0, 35)
+MobileAimbotButton.Position = UDim2.new(0.05, 90, 0.15, 0)
+MobileAimbotButton.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+MobileAimbotButton.BorderColor3 = Color3.fromRGB(170, 85, 235)
+MobileAimbotButton.BorderSizePixel = 1
+MobileAimbotButton.Text = "E"
+MobileAimbotButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+MobileAimbotButton.TextSize = 14
+MobileAimbotButton.FontFace = library.font
+MobileAimbotButton.Parent = MobileGui
+local e_corner = Instance.new("UICorner")
+e_corner.CornerRadius = UDim.new(0, 4)
+e_corner.Parent = MobileAimbotButton
+local draggingE, dragInputE, dragStartE, startPosE
+local function updateE(input)
+    local delta = input.Position - dragStartE
+    MobileAimbotButton.Position = UDim2.new(startPosE.X.Scale, startPosE.X.Offset + delta.X, startPosE.Y.Scale, startPosE.Y.Offset + delta.Y)
+end
+MobileAimbotButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingE = true
+        dragStartE = input.Position
+        startPosE = MobileAimbotButton.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                draggingE = false
+            end
+        end)
+    end
+end)
+MobileAimbotButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInputE = input
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if input == dragInputE and draggingE then
+        updateE(input)
+    end
+end)
+MobileAimbotButton.MouseButton1Click:Connect(function()
+    local setter = library.config_flags["aimbot_enabled"]
+    if setter then
+        setter(not library.flags["aimbot_enabled"])
+    else
+        getgenv().aimbot_active = not getgenv().aimbot_active
     end
 end)
 local enabled = true
