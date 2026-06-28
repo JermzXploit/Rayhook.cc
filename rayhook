@@ -1015,15 +1015,13 @@ local MobileGui = Instance.new("ScreenGui")
 MobileGui.Name = "RayhookMobileToggle"
 MobileGui.ResetOnSpawn = false
 MobileGui.IgnoreGuiInset = true
-if UIS.TouchEnabled and not UIS.KeyboardEnabled then
-    local success_parent, target_parent = pcall(function()
-        return game:GetService("CoreGui")
-    end)
-    if success_parent and target_parent then
-        MobileGui.Parent = target_parent
-    else
-        MobileGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
+local success_parent, target_parent = pcall(function()
+    return game:GetService("CoreGui")
+end)
+if success_parent and target_parent then
+    MobileGui.Parent = target_parent
+else
+    MobileGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 end
 local MobileButton = Instance.new("TextButton")
 MobileButton.Name = "ToggleButton"
